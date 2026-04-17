@@ -1,5 +1,10 @@
 plugins {
-    kotlin("jvm") version "2.2.21"
+    kotlin("jvm") version "2.0.21"
+    application
+}
+
+application {
+    mainClass.set("dev.marko.lsp.logo.MainKt")
 }
 
 group = "dev.marko"
