@@ -5,8 +5,15 @@ package dev.marko.lsp.logo.lexer
  *
  * Design decisions:
  * - The lexer is a single-pass, character-by-character scanner.
- * - Keywords are resolved via a static map after reading an identifier,
- *   making it trivial to add new keywords later.
+ * - **Two-tier identifier resolution**: after reading an identifier the lexer
+ *   first checks the [KEYWORDS] map (true keywords that affect parsing),
+ *   then the [BUILTINS] set (built-in procedures emitted as [TokenType.BUILTIN]),
+ *   and falls back to [TokenType.IDENT].
+ * - LOGO string literals start with a single `"` and extend until the next
+ *   whitespace or end of input (e.g. `"hello`).  They are emitted as
+ *   [TokenType.STRING].
+ * - Comparison operators `<`, `>`, `=` are emitted as [TokenType.LESS],
+ *   [TokenType.GREATER], [TokenType.EQUAL].
  * - Whitespace (spaces/tabs) is skipped, but newlines are emitted as
  *   [TokenType.NEWLINE] tokens so the parser can use them as statement
  *   separators.
@@ -19,26 +26,105 @@ package dev.marko.lsp.logo.lexer
  */
 class Lexer(private val source: String) {
 
-    // Scanner state
+    //  Scanner state 
     private var pos: Int = 0        // current index into [source]
     private var line: Int = 1       // 1-based current line
     private var column: Int = 1     // 1-based current column
 
-    // Keyword lookup (case-insensitive)
+    //  Keyword & built-in lookup 
     companion object {
-        /** Maps uppercased keyword text - TokenType. */
+        /**
+         * Maps uppercased keyword text → [TokenType].
+         *
+         * Only **true keywords** that influence parsing structure belong here.
+         */
         val KEYWORDS: Map<String, TokenType> = mapOf(
-            "TO"      to TokenType.TO,
-            "END"     to TokenType.END,
-            "MAKE"    to TokenType.MAKE,
-            "FORWARD" to TokenType.FORWARD,
-            "RIGHT"   to TokenType.RIGHT,
-            "LEFT"    to TokenType.LEFT,
-            "REPEAT"  to TokenType.REPEAT,
+            "TO"       to TokenType.TO,
+            "END"      to TokenType.END,
+            "MAKE"     to TokenType.MAKE,
+            "REPEAT"   to TokenType.REPEAT,
+            "FOR"      to TokenType.FOR,
+            "IF"       to TokenType.IF,
+            "IFELSE"   to TokenType.IFELSE,
+            "DO.WHILE" to TokenType.DO_WHILE,
+            "STOP"     to TokenType.STOP,
+            "OUTPUT"   to TokenType.OUTPUT,
+        )
+
+        /**
+         * Set of uppercased names for all known LOGO built-in procedures and
+         * their shorthand aliases.
+         *
+         * The parser treats every [TokenType.BUILTIN] uniformly; the specific
+         * command is distinguished by the token's lexeme at a later stage.
+         */
+        val BUILTINS: Set<String> = setOf(
+            //  Turtle movement 
+            "FORWARD", "FD",
+            "BACK", "BK",
+            "RIGHT", "RT",
+            "LEFT", "LT",
+
+            //  Pen control 
+            "PENUP", "PU",
+            "PENDOWN", "PD",
+
+            //  Screen / turtle 
+            "CLEARSCREEN", "CS",
+            "HOME",
+            "SETX", "SETY", "SETXY",
+            "SETHEADING", "SETH",
+            "HIDETURTLE", "HT",
+            "SHOWTURTLE", "ST",
+            "CHANGESHAPE", "CSH",
+
+            //  Appearance 
+            "SETCOLOR",
+            "SETWIDTH",
+
+            //  Drawing 
+            "ARC",
+            "FILL",
+            "FILLED",
+            "LABEL",
+            "SETLABELHEIGHT",
+
+            //  I/O 
+            "PRINT",
+            "TYPE",
+            "READWORD",
+
+            //  Queries 
+            "POS",
+            "XCOR", "YCOR",
+            "HEADING",
+            "TOWARDS",
+
+            //  Math / misc 
+            "RANDOM",
+            "SUM",
+            "DIFFERENCE",
+            "RUN",
+            "WAIT",
+
+            //  Window mode 
+            "WINDOW",
+            "FENCE",
+
+            //  List / word operations 
+            "FIRST", "LAST",
+            "ITEM", "PICK",
+            "BUTFIRST", "BF",
+            "BUTLAST", "BL",
+            "LIST",
+
+            //  Predicates 
+            "NOTEQUALP",
+            "EQUALP",
         )
     }
 
-    // Public API
+    //  Public API 
 
     /**
      * Tokenizes the entire source string and returns an immutable list of
@@ -51,7 +137,7 @@ class Lexer(private val source: String) {
             val c = peek()
 
             when {
-                // Newlines
+                //  Newlines 
                 c == '\n' -> {
                     tokens.add(makeToken(TokenType.NEWLINE, "\n"))
                     advance()
@@ -73,15 +159,15 @@ class Lexer(private val source: String) {
                     column = 1
                 }
 
-                // Whitespace (spaces, tabs) — skip
+                //  Whitespace (spaces, tabs) — skip 
                 c == ' ' || c == '\t' -> {
                     advance()
                 }
 
-                // Comments, skip to end of line
+                //  Comments — skip to end of line 
                 c == ';' -> skipComment()
 
-                // Single-character symbols
+                //  Single-character symbols 
                 c == '(' -> { tokens.add(makeToken(TokenType.LPAREN, "(")); advance() }
                 c == ')' -> { tokens.add(makeToken(TokenType.RPAREN, ")")); advance() }
                 c == '[' -> { tokens.add(makeToken(TokenType.LBRACKET, "[")); advance() }
@@ -91,16 +177,24 @@ class Lexer(private val source: String) {
                 c == '*' -> { tokens.add(makeToken(TokenType.STAR, "*")); advance() }
                 c == '/' -> { tokens.add(makeToken(TokenType.SLASH, "/")); advance() }
 
-                // Numbers
+                //  Comparison operators 
+                c == '<' -> { tokens.add(makeToken(TokenType.LESS, "<")); advance() }
+                c == '>' -> { tokens.add(makeToken(TokenType.GREATER, ">")); advance() }
+                c == '=' -> { tokens.add(makeToken(TokenType.EQUAL, "=")); advance() }
+
+                //  Numbers 
                 c.isDigit() -> tokens.add(readNumber())
 
-                // Variables (: followed by identifier)
+                //  String literals ("hello) 
+                c == '"' -> tokens.add(readString())
+
+                //  Variables (: followed by identifier) 
                 c == ':' -> tokens.add(readVariable())
 
-                // Identifiers & keywords
+                //  Identifiers, keywords & built-ins 
                 c.isLetter() -> tokens.add(readIdentifierOrKeyword())
 
-                // Unknown character
+                //  Unknown character 
                 else -> {
                     tokens.add(makeToken(TokenType.UNKNOWN, c.toString()))
                     advance()
@@ -112,7 +206,7 @@ class Lexer(private val source: String) {
         return tokens
     }
 
-    // Character-level helpers
+    //  Character-level helpers 
 
     /** Returns the character at the current position without consuming it. */
     private fun peek(): Char = source[pos]
@@ -131,7 +225,7 @@ class Lexer(private val source: String) {
         return c
     }
 
-    // Token factories
+    //  Token factories 
 
     /**
      * Creates a token anchored at the *current* position (before any
@@ -147,7 +241,7 @@ class Lexer(private val source: String) {
         columnOffset: Int = 0
     ): Token = Token(type, lexeme, tokenLine, column + columnOffset)
 
-    // Multi-character token readers
+    //  Multi-character token readers 
 
     /**
      * Reads a contiguous sequence of digits and emits a [TokenType.NUMBER].
@@ -164,17 +258,42 @@ class Lexer(private val source: String) {
     }
 
     /**
-     * Reads an identifier (letter followed by letters/digits) and checks
-     * whether it matches a LOGO keyword (case-insensitively).
+     * Reads a LOGO string literal.
+     *
+     * In LOGO, strings start with a single `"` and extend until the next
+     * whitespace character, structural delimiter (`[`, `]`, `(`, `)`), or
+     * end of input.  For example, `"hello` produces a token with lexeme
+     * `"hello` and type [TokenType.STRING].
+     */
+    private fun readString(): Token {
+        val startColumn = column
+        val start = pos
+        advance() // consume the opening "
+        while (!isAtEnd() && !peek().isWhitespace() && peek() !in "[]()") {
+            advance()
+        }
+        val lexeme = source.substring(start, pos)
+        return Token(TokenType.STRING, lexeme, line, startColumn)
+    }
+
+    /**
+     * Reads an identifier (letter followed by letters, digits, dots, or
+     * underscores) and resolves it in order:
+     *
+     * 1. [KEYWORDS] map → specific keyword [TokenType]
+     * 2. [BUILTINS] set → [TokenType.BUILTIN]
+     * 3. Otherwise     → [TokenType.IDENT]
      */
     private fun readIdentifierOrKeyword(): Token {
         val startColumn = column
         val start = pos
-        while (!isAtEnd() && (peek().isLetterOrDigit() || peek() == '_')) {
+        while (!isAtEnd() && (peek().isLetterOrDigit() || peek() == '_' || peek() == '.')) {
             advance()
         }
         val lexeme = source.substring(start, pos)
-        val type = KEYWORDS[lexeme.uppercase()] ?: TokenType.IDENT
+        val upper = lexeme.uppercase()
+        val type = KEYWORDS[upper]
+            ?: if (upper in BUILTINS) TokenType.BUILTIN else TokenType.IDENT
         return Token(type, lexeme, line, startColumn)
     }
 

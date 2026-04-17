@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test
 
 class LexerTest {
 
-    // Helper
+    //  Helper 
 
     /** Tokenize and strip the trailing EOF for easier assertions. */
     private fun tokenize(source: String): List<Token> =
@@ -15,7 +15,7 @@ class LexerTest {
     private fun types(source: String): List<TokenType> =
         tokenize(source).map { it.type }
 
-    // Empty / EOF
+    //  Empty / EOF 
 
     @Test
     fun `empty input produces only EOF`() {
@@ -26,22 +26,33 @@ class LexerTest {
         assertEquals(1, tokens[0].column)
     }
 
-    // Keywords (case-insensitive)
+    //  True keywords (case-insensitive) 
 
     @Test
-    fun `keywords recognized in uppercase`() {
+    fun `true keywords recognized in uppercase`() {
         assertEquals(
-            listOf(TokenType.TO, TokenType.END, TokenType.MAKE, TokenType.FORWARD,
-                   TokenType.RIGHT, TokenType.LEFT, TokenType.REPEAT),
-            types("TO END MAKE FORWARD RIGHT LEFT REPEAT")
+            listOf(
+                TokenType.TO, TokenType.END, TokenType.MAKE,
+                TokenType.REPEAT, TokenType.FOR, TokenType.IF,
+                TokenType.IFELSE, TokenType.STOP, TokenType.OUTPUT
+            ),
+            types("TO END MAKE REPEAT FOR IF IFELSE STOP OUTPUT")
+        )
+    }
+
+    @Test
+    fun `DO_WHILE keyword with dot`() {
+        assertEquals(
+            listOf(TokenType.DO_WHILE),
+            types("do.while")
         )
     }
 
     @Test
     fun `keywords recognized in lowercase`() {
         assertEquals(
-            listOf(TokenType.TO, TokenType.END, TokenType.FORWARD),
-            types("to end forward")
+            listOf(TokenType.TO, TokenType.END, TokenType.REPEAT),
+            types("to end repeat")
         )
     }
 
@@ -53,7 +64,66 @@ class LexerTest {
         )
     }
 
-    // Numbers
+    //  Built-in procedures 
+
+    @Test
+    fun `built-in commands produce BUILTIN token`() {
+        assertEquals(
+            listOf(TokenType.BUILTIN, TokenType.BUILTIN, TokenType.BUILTIN),
+            types("FORWARD RIGHT LEFT")
+        )
+    }
+
+    @Test
+    fun `built-in shorthand aliases`() {
+        assertEquals(
+            listOf(TokenType.BUILTIN, TokenType.BUILTIN, TokenType.BUILTIN, TokenType.BUILTIN),
+            types("FD RT LT BK")
+        )
+    }
+
+    @Test
+    fun `built-ins are case-insensitive`() {
+        assertEquals(
+            listOf(TokenType.BUILTIN, TokenType.BUILTIN),
+            types("forward Fd")
+        )
+    }
+
+    @Test
+    fun `built-in preserves original lexeme`() {
+        val tokens = tokenize("forward")
+        assertEquals("forward", tokens[0].lexeme)
+        assertEquals(TokenType.BUILTIN, tokens[0].type)
+    }
+
+    @Test
+    fun `all built-in categories recognized`() {
+        // One representative from each category
+        val builtins = listOf(
+            "PENUP", "PU", "CLEARSCREEN", "CS", "HOME",
+            "SETX", "SETY", "SETXY", "SETHEADING", "SETH",
+            "HIDETURTLE", "HT", "SHOWTURTLE", "ST",
+            "CHANGESHAPE", "CSH", "SETCOLOR", "SETWIDTH",
+            "ARC", "FILL", "FILLED", "LABEL", "SETLABELHEIGHT",
+            "PRINT", "TYPE", "READWORD",
+            "POS", "XCOR", "YCOR", "HEADING", "TOWARDS",
+            "RANDOM", "SUM", "DIFFERENCE", "RUN", "WAIT",
+            "WINDOW", "FENCE",
+            "FIRST", "LAST", "ITEM", "PICK",
+            "BUTFIRST", "BF", "BUTLAST", "BL", "LIST",
+            "NOTEQUALP", "EQUALP"
+        )
+        for (name in builtins) {
+            val result = types(name)
+            assertEquals(
+                listOf(TokenType.BUILTIN), result,
+                "Expected BUILTIN for '$name' but got $result"
+            )
+        }
+    }
+
+    //  Numbers 
 
     @Test
     fun `single digit number`() {
@@ -77,12 +147,44 @@ class LexerTest {
         assertEquals(listOf("10", "200", "3"), tokens.map { it.lexeme })
     }
 
-    // Identifiers
+    //  String literals 
+
+    @Test
+    fun `simple string literal`() {
+        val tokens = tokenize("\"hello")
+        assertEquals(1, tokens.size)
+        assertEquals(TokenType.STRING, tokens[0].type)
+        assertEquals("\"hello", tokens[0].lexeme)
+    }
+
+    @Test
+    fun `string literal stops at whitespace`() {
+        val tokens = tokenize("\"red \"blue")
+        assertEquals(2, tokens.size)
+        assertEquals(TokenType.STRING, tokens[0].type)
+        assertEquals("\"red", tokens[0].lexeme)
+        assertEquals("\"blue", tokens[1].lexeme)
+    }
+
+    @Test
+    fun `string literal in context`() {
+        assertEquals(
+            listOf(TokenType.BUILTIN, TokenType.STRING),
+            types("PRINT \"hello")
+        )
+    }
+
+    @Test
+    fun `string literal column tracking`() {
+        val tokens = tokenize("PRINT \"hello")
+        assertEquals(7, tokens[1].column) // "hello starts at column 7
+    }
+
+    //  Identifiers 
 
     @Test
     fun `simple identifier`() {
         val tokens = tokenize("square")
-        // "square" is not a keyword
         assertEquals(TokenType.IDENT, tokens[0].type)
         assertEquals("square", tokens[0].lexeme)
     }
@@ -101,7 +203,7 @@ class LexerTest {
         assertEquals("my_proc", tokens[0].lexeme)
     }
 
-    // Variables
+    //  Variables 
 
     @Test
     fun `variable with single letter`() {
@@ -130,7 +232,7 @@ class LexerTest {
         assertEquals(TokenType.UNKNOWN, tokens[0].type)
     }
 
-    // Symbols & Operators
+    //  Symbols & Operators 
 
     @Test
     fun `parentheses`() {
@@ -156,7 +258,25 @@ class LexerTest {
         )
     }
 
-    // Comments
+    //  Comparison operators 
+
+    @Test
+    fun `comparison operators`() {
+        assertEquals(
+            listOf(TokenType.LESS, TokenType.GREATER, TokenType.EQUAL),
+            types("< > =")
+        )
+    }
+
+    @Test
+    fun `comparison in conditional expression`() {
+        assertEquals(
+            listOf(TokenType.IF, TokenType.VARIABLE, TokenType.LESS, TokenType.NUMBER),
+            types("IF :x < 10")
+        )
+    }
+
+    //  Comments 
 
     @Test
     fun `comment is skipped entirely`() {
@@ -168,12 +288,12 @@ class LexerTest {
     fun `comment after code`() {
         val tokens = tokenize("FORWARD 100 ; move forward")
         assertEquals(
-            listOf(TokenType.FORWARD, TokenType.NUMBER),
+            listOf(TokenType.BUILTIN, TokenType.NUMBER),
             tokens.map { it.type }
         )
     }
 
-    // Newlines
+    //  Newlines 
 
     @Test
     fun `newline produces NEWLINE token`() {
@@ -184,7 +304,7 @@ class LexerTest {
         )
     }
 
-    // Line & Column tracking
+    //  Line & Column tracking 
 
     @Test
     fun `single line column tracking`() {
@@ -202,7 +322,7 @@ class LexerTest {
         // Line 1: TO(1,1) square(1,4) \n
         // Line 2: FORWARD(2,1) 100(2,9) \n
         // Line 3: END(3,1)
-        val forward = tokens.first { it.type == TokenType.FORWARD }
+        val forward = tokens.first { it.type == TokenType.BUILTIN }
         assertEquals(2, forward.line)
         assertEquals(1, forward.column)
 
@@ -215,7 +335,7 @@ class LexerTest {
         assertEquals(1, end.column)
     }
 
-    // Unknown characters
+    //  Unknown characters 
 
     @Test
     fun `unknown character produces UNKNOWN token`() {
@@ -228,12 +348,12 @@ class LexerTest {
     fun `unknown among valid tokens`() {
         val tokens = tokenize("FORWARD @ 100")
         assertEquals(
-            listOf(TokenType.FORWARD, TokenType.UNKNOWN, TokenType.NUMBER),
+            listOf(TokenType.BUILTIN, TokenType.UNKNOWN, TokenType.NUMBER),
             tokens.map { it.type }
         )
     }
 
-    // Full program
+    //  Full program 
 
     @Test
     fun `full LOGO program`() {
@@ -251,24 +371,24 @@ class LexerTest {
 
         assertEquals(
             listOf(
-                TokenType.TO, TokenType.IDENT, TokenType.VARIABLE,       // TO square :size
-                TokenType.REPEAT, TokenType.NUMBER, TokenType.LBRACKET,  // REPEAT 4 [
-                TokenType.FORWARD, TokenType.VARIABLE,                    // FORWARD :size
-                TokenType.RIGHT, TokenType.NUMBER,                        // RIGHT 90
-                TokenType.RBRACKET,                                       // ]
-                TokenType.END                                             // END
+                TokenType.TO, TokenType.IDENT, TokenType.VARIABLE,          // TO square :size
+                TokenType.REPEAT, TokenType.NUMBER, TokenType.LBRACKET,     // REPEAT 4 [
+                TokenType.BUILTIN, TokenType.VARIABLE,                       // FORWARD :size
+                TokenType.BUILTIN, TokenType.NUMBER,                         // RIGHT 90
+                TokenType.RBRACKET,                                          // ]
+                TokenType.END                                                // END
             ),
             typeList
         )
     }
 
-    // Expression tokenization
+    //  Expression tokenization 
 
     @Test
     fun `arithmetic expression`() {
         val tokens = tokenize("FORWARD :x + 10")
         assertEquals(
-            listOf(TokenType.FORWARD, TokenType.VARIABLE, TokenType.PLUS, TokenType.NUMBER),
+            listOf(TokenType.BUILTIN, TokenType.VARIABLE, TokenType.PLUS, TokenType.NUMBER),
             tokens.map { it.type }
         )
     }
@@ -278,9 +398,35 @@ class LexerTest {
         val tokens = tokenize("FORWARD (:x + :y) * 2")
         assertEquals(
             listOf(
-                TokenType.FORWARD, TokenType.LPAREN, TokenType.VARIABLE,
+                TokenType.BUILTIN, TokenType.LPAREN, TokenType.VARIABLE,
                 TokenType.PLUS, TokenType.VARIABLE, TokenType.RPAREN,
                 TokenType.STAR, TokenType.NUMBER
+            ),
+            tokens.map { it.type }
+        )
+    }
+
+    //  Two-tier resolution 
+
+    @Test
+    fun `keyword takes priority over builtin`() {
+        // MAKE is both conceptually a "command" but it's a true keyword
+        assertEquals(listOf(TokenType.MAKE), types("MAKE"))
+    }
+
+    @Test
+    fun `unknown identifier is IDENT not BUILTIN`() {
+        assertEquals(listOf(TokenType.IDENT), types("myFunction"))
+    }
+
+    @Test
+    fun `LOGO program with strings and comparisons`() {
+        val source = """IF :x < 10 [PRINT "small]"""
+        val tokens = tokenize(source)
+        assertEquals(
+            listOf(
+                TokenType.IF, TokenType.VARIABLE, TokenType.LESS, TokenType.NUMBER,
+                TokenType.LBRACKET, TokenType.BUILTIN, TokenType.STRING, TokenType.RBRACKET
             ),
             tokens.map { it.type }
         )
