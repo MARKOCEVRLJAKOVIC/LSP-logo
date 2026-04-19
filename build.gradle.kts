@@ -1,6 +1,7 @@
 plugins {
     kotlin("jvm") version "2.0.21"
     application
+    id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
 application {
@@ -15,6 +16,7 @@ repositories {
 }
 
 dependencies {
+    implementation("org.eclipse.lsp4j:org.eclipse.lsp4j:0.23.1")
     testImplementation(kotlin("test"))
 }
 
@@ -24,4 +26,8 @@ kotlin {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+tasks.named<JavaExec>("run") {
+    standardInput = System.`in`
 }
