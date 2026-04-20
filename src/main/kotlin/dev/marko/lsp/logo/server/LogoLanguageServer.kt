@@ -51,7 +51,7 @@ class LogoLanguageServer : LanguageServer, LanguageClientAware {
             semanticTokensProvider = SemanticTokensWithRegistrationOptions().apply {
                 legend = SemanticTokensLegend(
                     listOf("keyword", "function", "variable", "number", "string", "comment"),
-                    emptyList()
+                    listOf("defaultLibrary")
                 )
                 setFull(true)
             }

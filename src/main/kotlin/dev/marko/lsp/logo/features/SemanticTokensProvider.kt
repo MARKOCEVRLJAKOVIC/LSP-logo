@@ -45,6 +45,8 @@ class SemanticTokensProvider {
         const val TYPE_NUMBER   = 3
         const val TYPE_STRING   = 4
         const val TYPE_COMMENT  = 5
+
+        const val MOD_DEFAULT_LIBRARY = 0
     }
 
     /**
@@ -62,7 +64,7 @@ class SemanticTokensProvider {
             var prevChar = 0   // 0-based
 
             for (token in tokens) {
-                val typeIndex = mapTokenType(token.type) ?: continue
+                val (typeIndex, modifiers) = mapToken(token.type) ?: continue
 
                 // Convert 1-based lexer positions to 0-based LSP positions
                 val tokenLine = token.line - 1
@@ -80,7 +82,7 @@ class SemanticTokensProvider {
                 data.add(deltaStartChar)
                 data.add(length)
                 data.add(typeIndex)
-                data.add(0) // no modifiers
+                data.add(modifiers) // no modifiers
 
                 prevLine = tokenLine
                 prevChar = tokenChar
@@ -96,7 +98,7 @@ class SemanticTokensProvider {
      * Maps a [TokenType] to the corresponding semantic token type index,
      * or `null` if the token should not be emitted (e.g. NEWLINE, EOF, UNKNOWN).
      */
-    private fun mapTokenType(type: TokenType): Int? {
+    private fun mapToken(type: TokenType): Pair<Int, Int>? {
         return when (type) {
             // Keywords
             TokenType.TO,
@@ -108,20 +110,16 @@ class SemanticTokensProvider {
             TokenType.IFELSE,
             TokenType.DO_WHILE,
             TokenType.STOP,
-            TokenType.OUTPUT -> TYPE_KEYWORD
+            TokenType.OUTPUT -> TYPE_KEYWORD to 0
+
 
             // Functions (built-in commands and user-defined procedure calls)
-            TokenType.BUILTIN,
-            TokenType.IDENT -> TYPE_FUNCTION
+            TokenType.BUILTIN -> TYPE_FUNCTION to (1 shl MOD_DEFAULT_LIBRARY)
+            TokenType.IDENT -> TYPE_FUNCTION to 0
 
-            // Variables
-            TokenType.VARIABLE -> TYPE_VARIABLE
-
-            // Numbers
-            TokenType.NUMBER -> TYPE_NUMBER
-
-            // Strings
-            TokenType.STRING -> TYPE_STRING
+            TokenType.VARIABLE -> TYPE_VARIABLE to 0
+            TokenType.NUMBER   -> TYPE_NUMBER   to 0
+            TokenType.STRING   -> TYPE_STRING   to 0
 
             // Tokens that do not get semantic highlighting
             TokenType.NEWLINE,
