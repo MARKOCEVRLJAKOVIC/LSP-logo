@@ -14,5 +14,6 @@ package dev.marko.lsp.logo.analysis
 data class SemanticError(
     val message: String,
     val line: Int,
-    val column: Int
+    val column: Int,
+    val length: Int = 1
 )

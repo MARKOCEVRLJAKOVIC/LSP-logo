@@ -41,7 +41,7 @@ class DiagnosticsPublisher(private val client: LanguageClient) {
 
         for (err in semanticErrors) {
             diagnostics += Diagnostic(
-                toRange(err.line, err.column),
+                toRange(err.line, err.column, err.length),
                 err.message,
                 DiagnosticSeverity.Error,
                 "logo-semantic"
@@ -60,12 +60,12 @@ class DiagnosticsPublisher(private val client: LanguageClient) {
      * This is reasonable for error markers; more precise spans could
      * be added later when the AST carries end-positions.
      */
-    private fun toRange(line: Int, column: Int): Range {
+    private fun toRange(line: Int, column: Int, length: Int = 1): Range {
         val zeroLine = (line - 1).coerceAtLeast(0)
         val zeroCol  = (column - 1).coerceAtLeast(0)
         return Range(
             Position(zeroLine, zeroCol),
-            Position(zeroLine, zeroCol + 1)
+            Position(zeroLine, zeroCol + length)
         )
     }
 }

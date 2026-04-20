@@ -149,13 +149,15 @@ class SemanticAnalyzer {
             errors += SemanticError(
                 "Undefined procedure: ${node.name}",
                 node.position.line,
-                node.position.column
+                node.position.column,
+                node.name.length
             )
         } else if (node.args.size != procSymbol.paramCount) {
             errors += SemanticError(
                 "Procedure '${node.name}' expects ${procSymbol.paramCount} argument(s) but got ${node.args.size}",
                 node.position.line,
-                node.position.column
+                node.position.column,
+                node.name.length
             )
         }
     }
@@ -220,7 +222,8 @@ class SemanticAnalyzer {
             errors += SemanticError(
                 "Undefined variable: ${node.name}",
                 node.position.line,
-                node.position.column
+                node.position.column,
+                node.name.length + 1
             )
         }
     }
