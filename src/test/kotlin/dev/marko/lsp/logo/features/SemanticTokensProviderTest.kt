@@ -304,4 +304,58 @@ class SemanticTokensProviderTest {
                 "data size ${result.data.size} for '$src' should be multiple of 5")
         }
     }
+
+    // 16. Comment tokens
+
+    @Test
+    fun `comment is encoded as comment type`() {
+        val result = provider.provide("; this is a comment")
+        val tokens = decodeTokens(result.data)
+
+        assertEquals(1, tokens.size)
+        assertEquals(0, tokens[0][0], "deltaLine")
+        assertEquals(0, tokens[0][1], "deltaStartChar")
+        assertEquals(19, tokens[0][2], "length of '; this is a comment'")
+        assertEquals(SemanticTokensProvider.TYPE_COMMENT, tokens[0][3], "type = comment")
+        assertEquals(0, tokens[0][4], "modifiers")
+    }
+
+    @Test
+    fun `comment after code on same line`() {
+        // "FD 100 ; go forward"
+        val result = provider.provide("FD 100 ; go forward")
+        val tokens = decodeTokens(result.data)
+
+        assertEquals(3, tokens.size)
+
+        // FD (function)
+        assertEquals(SemanticTokensProvider.TYPE_FUNCTION, tokens[0][3])
+
+        // 100 (number)
+        assertEquals(SemanticTokensProvider.TYPE_NUMBER, tokens[1][3])
+
+        // ; go forward (comment)
+        assertEquals(0, tokens[2][0], "comment deltaLine")
+        assertEquals(4, tokens[2][1], "comment deltaStartChar (7 - 3)")
+        assertEquals(12, tokens[2][2], "comment length")
+        assertEquals(SemanticTokensProvider.TYPE_COMMENT, tokens[2][3], "type = comment")
+    }
+
+    @Test
+    fun `comment on its own line between code`() {
+        val result = provider.provide("FD 100\n; comment\nRT 90")
+        val tokens = decodeTokens(result.data)
+
+        // FD, 100, comment, RT, 90
+        assertEquals(5, tokens.size)
+
+        // comment token on line 1
+        assertEquals(1, tokens[2][0], "comment deltaLine")
+        assertEquals(0, tokens[2][1], "comment deltaStartChar")
+        assertEquals(9, tokens[2][2], "comment length")
+        assertEquals(SemanticTokensProvider.TYPE_COMMENT, tokens[2][3])
+
+        // RT on line 2
+        assertEquals(1, tokens[3][0], "RT deltaLine")
+    }
 }

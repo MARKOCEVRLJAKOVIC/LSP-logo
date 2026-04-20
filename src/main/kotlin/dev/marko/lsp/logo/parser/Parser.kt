@@ -63,11 +63,12 @@ class Parser(private val tokens: List<Token>) {
     }
 
     /**
-     * Consumes consecutive [TokenType.NEWLINE] tokens, effectively
-     * skipping blank lines between statements.
+     * Consumes consecutive [TokenType.NEWLINE] and [TokenType.COMMENT]
+     * tokens, effectively skipping blank lines and comments between
+     * statements.
      */
     private fun skipNewlines() {
-        while (check(TokenType.NEWLINE)) advance()
+        while (check(TokenType.NEWLINE) || check(TokenType.COMMENT)) advance()
     }
 
     /**

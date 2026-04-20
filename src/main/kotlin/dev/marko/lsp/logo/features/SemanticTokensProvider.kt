@@ -120,6 +120,7 @@ class SemanticTokensProvider {
             TokenType.VARIABLE -> TYPE_VARIABLE to 0
             TokenType.NUMBER   -> TYPE_NUMBER   to 0
             TokenType.STRING   -> TYPE_STRING   to 0
+            TokenType.COMMENT  -> TYPE_COMMENT  to 0
 
             // Tokens that do not get semantic highlighting
             TokenType.NEWLINE,

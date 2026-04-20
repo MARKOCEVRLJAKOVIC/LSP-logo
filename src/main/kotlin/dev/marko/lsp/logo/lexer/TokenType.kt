@@ -57,6 +57,9 @@ enum class TokenType {
     GREATER,        // >
     EQUAL,          // =
 
+    //  Comments 
+    COMMENT,        // ; to end of line
+
     //  Special 
     NEWLINE,
     EOF,

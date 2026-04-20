@@ -279,18 +279,23 @@ class LexerTest {
     //  Comments 
 
     @Test
-    fun `comment is skipped entirely`() {
+    fun `comment produces COMMENT token`() {
         val tokens = tokenize("; this is a comment")
-        assertTrue(tokens.isEmpty(), "Comment should produce no tokens")
+        assertEquals(1, tokens.size, "Comment should produce one COMMENT token")
+        assertEquals(TokenType.COMMENT, tokens[0].type)
+        assertEquals("; this is a comment", tokens[0].lexeme)
+        assertEquals(1, tokens[0].line)
+        assertEquals(1, tokens[0].column)
     }
 
     @Test
     fun `comment after code`() {
         val tokens = tokenize("FORWARD 100 ; move forward")
         assertEquals(
-            listOf(TokenType.BUILTIN, TokenType.NUMBER),
+            listOf(TokenType.BUILTIN, TokenType.NUMBER, TokenType.COMMENT),
             tokens.map { it.type }
         )
+        assertEquals("; move forward", tokens[2].lexeme)
     }
 
     //  Newlines 

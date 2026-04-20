@@ -17,8 +17,8 @@ package dev.marko.lsp.logo.lexer
  * - Whitespace (spaces/tabs) is skipped, but newlines are emitted as
  *   [TokenType.NEWLINE] tokens so the parser can use them as statement
  *   separators.
- * - LOGO comments start with `;` and run to end-of-line; they are skipped
- *   entirely (no token emitted).
+ * - LOGO comments start with `;` and run to end-of-line; they are emitted
+ *   as [TokenType.COMMENT] tokens for semantic highlighting.
  * - Position tracking (line/column) is maintained for every token to
  *   support LSP diagnostics and hover information.
  *
@@ -164,8 +164,8 @@ class Lexer(private val source: String) {
                     advance()
                 }
 
-                //  Comments — skip to end of line 
-                c == ';' -> skipComment()
+                //  Comments — tokenize to end of line 
+                c == ';' -> tokens.add(readComment())
 
                 //  Single-character symbols 
                 c == '(' -> { tokens.add(makeToken(TokenType.LPAREN, "(")); advance() }
@@ -320,12 +320,19 @@ class Lexer(private val source: String) {
     }
 
     /**
-     * Skips a single-line comment that starts with `;`.
-     * Advances past all characters until (but not including) the next newline.
+     * Reads a single-line comment that starts with `;`.
+     * Captures all characters until (but not including) the next newline
+     * and returns a [TokenType.COMMENT] token.
      */
-    private fun skipComment() {
+    private fun readComment(): Token {
+        val startColumn = column
+        val start = pos
+
         while (!isAtEnd() && peek() != '\n' && peek() != '\r') {
             advance()
         }
+
+        val lexeme = source.substring(start, pos)
+        return Token(TokenType.COMMENT, lexeme, line, startColumn)
     }
 }
