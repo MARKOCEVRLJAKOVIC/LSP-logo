@@ -44,15 +44,17 @@ class LogoLanguageServer : LanguageServer, LanguageClientAware {
             // Full document sync — the client sends the entire document on change
             setTextDocumentSync(TextDocumentSyncKind.Full)
 
-            // Declaration provider — stub for Phase 8
+            // Declaration provider, stub for Phase 8
             setDeclarationProvider(true)
 
-            // Semantic tokens provider — empty legend stub for Phase 7
-//            semanticTokensProvider = SemanticTokensWithRegistrationOptions(
-//                SemanticTokensLegend(emptyList(), emptyList()),
-//                /* full = */ true,
-//                /* range = */ false
-//            )
+            // Semantic tokens provider, Phase 7
+            semanticTokensProvider = SemanticTokensWithRegistrationOptions().apply {
+                legend = SemanticTokensLegend(
+                    listOf("keyword", "function", "variable", "number", "string", "comment"),
+                    emptyList()
+                )
+                setFull(true)
+            }
         }
 
         val serverInfo = ServerInfo("LOGO Language Server", "1.0.0")

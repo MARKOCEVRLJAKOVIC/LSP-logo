@@ -34,11 +34,9 @@ class LogoLanguageServerTest {
     @Test
     fun `initialize advertises semantic tokens provider`() {
         val server = LogoLanguageServer()
-        // semanticTokensProvider is removed in Faze 6 to avoid server crash,
-        // It will be added in Faze 7 when implementing semantic highlighting
         val result = server.initialize(InitializeParams()).get()
-        assertNull(result.capabilities.semanticTokensProvider,
-            "semanticTokensProvider treba biti null dok Faza 7 nije implementirana")
+        val semanticTokens = result.capabilities.semanticTokensProvider
+        assertNotNull(semanticTokens, "semanticTokensProvider should be set after Phase 7")
     }
 
     @Test

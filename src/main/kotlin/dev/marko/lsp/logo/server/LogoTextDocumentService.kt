@@ -2,6 +2,7 @@ package dev.marko.lsp.logo.server
 
 import dev.marko.lsp.logo.analysis.SemanticAnalyzer
 import dev.marko.lsp.logo.features.DiagnosticsPublisher
+import dev.marko.lsp.logo.features.SemanticTokensProvider
 import dev.marko.lsp.logo.lexer.Lexer
 import dev.marko.lsp.logo.parser.ParseException
 import dev.marko.lsp.logo.parser.Parser
@@ -137,6 +138,15 @@ class LogoTextDocumentService : TextDocumentService {
 
     override fun formatting(params: DocumentFormattingParams): CompletableFuture<List<out TextEdit>> {
         return CompletableFuture.completedFuture(emptyList())
+    }
+
+    // Semantic tokens
+
+    override fun semanticTokensFull(params: SemanticTokensParams): CompletableFuture<SemanticTokens> {
+        val text = documents[params.textDocument.uri]
+            ?: return CompletableFuture.completedFuture(SemanticTokens(emptyList()))
+        val tokens = SemanticTokensProvider().provide(text)
+        return CompletableFuture.completedFuture(tokens)
     }
 
     // Accessors for testing
