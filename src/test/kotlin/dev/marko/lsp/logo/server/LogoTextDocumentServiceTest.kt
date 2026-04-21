@@ -126,4 +126,33 @@ class LogoTextDocumentServiceTest {
         assertEquals("file:///close.logo", lastPublish.uri)
         assertTrue(lastPublish.diagnostics.isEmpty(), "Expected cleared diagnostics after close")
     }
+
+    @Test
+    fun `declaration on procedure call returns its definition`() {
+        val uri = "file:///decl.logo"
+        val source = """
+            TO SQUARE
+              REPEAT 4 [FD 100 RT 90]
+            END
+            
+            SQUARE
+        """.trimIndent()
+        
+        openDoc(uri, source)
+        
+        // "SQUARE" call is on line 4, col 0 (0-based)
+        val params = DeclarationParams(TextDocumentIdentifier(uri), Position(4, 0))
+        val result = service.declaration(params).get()
+        
+        assertTrue(result.isLeft)
+        val locations = result.left
+        assertEquals(1, locations.size)
+        
+        val loc = locations[0]
+        assertEquals(uri, loc.uri)
+        // Definition "TO SQUARE" is on line 0, column 0 in AST (1-based)
+        // Which is line 0, column 0 in LSP (0-based)
+        assertEquals(0, loc.range.start.line)
+        assertEquals(0, loc.range.start.character)
+    }
 }

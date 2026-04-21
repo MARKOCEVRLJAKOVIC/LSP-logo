@@ -1,11 +1,14 @@
 package dev.marko.lsp.logo.server
 
 import dev.marko.lsp.logo.analysis.SemanticAnalyzer
+import dev.marko.lsp.logo.features.CursorResolver
 import dev.marko.lsp.logo.features.DiagnosticsPublisher
+import dev.marko.lsp.logo.features.ResolvedSymbol
 import dev.marko.lsp.logo.features.SemanticTokensProvider
 import dev.marko.lsp.logo.lexer.Lexer
 import dev.marko.lsp.logo.parser.ParseException
 import dev.marko.lsp.logo.parser.Parser
+import dev.marko.lsp.logo.parser.ProgramNode
 import org.eclipse.lsp4j.*
 import org.eclipse.lsp4j.jsonrpc.messages.Either
 import org.eclipse.lsp4j.services.LanguageClient
@@ -28,6 +31,15 @@ class LogoTextDocumentService : TextDocumentService {
 
     /** Open documents: URI → latest full source text. */
     private val documents = ConcurrentHashMap<String, String>()
+
+    /** Last successfully analyzed program AST per document. */
+    private val programs = ConcurrentHashMap<String, ProgramNode>()
+
+    /** Last successfully populated semantic analyzer per document. */
+    private val analyzers = ConcurrentHashMap<String, SemanticAnalyzer>()
+
+    /** Cursor resolver instance (stateless, safe to share). */
+    private val cursorResolver = CursorResolver()
 
     /** Set after the server connects to the client. */
     private var diagnosticsPublisher: DiagnosticsPublisher? = null
@@ -59,6 +71,8 @@ class LogoTextDocumentService : TextDocumentService {
     override fun didClose(params: DidCloseTextDocumentParams) {
         val uri = params.textDocument.uri
         documents.remove(uri)
+        programs.remove(uri)
+        analyzers.remove(uri)
         // Clear diagnostics for the closed document
         diagnosticsPublisher?.publish(uri, emptyList(), emptyList())
     }
@@ -92,6 +106,10 @@ class LogoTextDocumentService : TextDocumentService {
             // 3. Semantic analysis
             val analyzer = SemanticAnalyzer()
             semanticErrors = analyzer.analyze(program)
+
+            // 4. Store per-document state for features like go-to-declaration
+            programs[uri] = program
+            analyzers[uri] = analyzer
         } catch (e: ParseException) {
             // Fatal parse error – still publish what we have
             parseErrors.add(e)
@@ -117,7 +135,29 @@ class LogoTextDocumentService : TextDocumentService {
     }
 
     override fun declaration(params: DeclarationParams): CompletableFuture<Either<List<out Location>, List<out LocationLink>>> {
-        return CompletableFuture.completedFuture(Either.forLeft(emptyList()))
+        val uri = params.textDocument.uri
+        val program = programs[uri]
+            ?: return CompletableFuture.completedFuture(Either.forLeft(emptyList()))
+        val analyzer = analyzers[uri]
+            ?: return CompletableFuture.completedFuture(Either.forLeft(emptyList()))
+
+        val lspLine = params.position.line
+        val lspCol  = params.position.character
+
+        val resolved = cursorResolver.resolve(program, lspLine, lspCol)
+            ?: return CompletableFuture.completedFuture(Either.forLeft(emptyList()))
+
+        val symbolPos = when (resolved) {
+            is ResolvedSymbol.ResolvedProc -> analyzer.symbolTable.lookupProc(resolved.name)?.position
+            is ResolvedSymbol.ResolvedVar  -> analyzer.symbolTable.lookupVar(resolved.name)?.position
+        } ?: return CompletableFuture.completedFuture(Either.forLeft(emptyList()))
+
+        // Convert 1-based AST position to 0-based LSP position
+        val targetLine = symbolPos.line - 1
+        val targetCol  = symbolPos.column - 1
+        val location = Location(uri, Range(Position(targetLine, targetCol), Position(targetLine, targetCol)))
+
+        return CompletableFuture.completedFuture(Either.forLeft(listOf(location)))
     }
 
     override fun definition(params: DefinitionParams): CompletableFuture<Either<List<out Location>, List<out LocationLink>>> {
