@@ -3,6 +3,7 @@ package dev.marko.lsp.logo.server
 import dev.marko.lsp.logo.analysis.SemanticAnalyzer
 import dev.marko.lsp.logo.features.CursorResolver
 import dev.marko.lsp.logo.features.DiagnosticsPublisher
+import dev.marko.lsp.logo.features.DocumentSymbolProvider
 import dev.marko.lsp.logo.features.HoverProvider
 import dev.marko.lsp.logo.features.ResolvedSymbol
 import dev.marko.lsp.logo.features.SemanticTokensProvider
@@ -184,7 +185,12 @@ class LogoTextDocumentService : TextDocumentService {
     }
 
     override fun documentSymbol(params: DocumentSymbolParams): CompletableFuture<List<Either<SymbolInformation, DocumentSymbol>>> {
-        return CompletableFuture.completedFuture(emptyList())
+        val uri = params.textDocument.uri
+        val program = programs[uri]
+            ?: return CompletableFuture.completedFuture(emptyList())
+
+        val symbols = DocumentSymbolProvider().provide(program)
+        return CompletableFuture.completedFuture(symbols.map { Either.forRight(it) })
     }
 
     override fun codeAction(params: CodeActionParams): CompletableFuture<List<Either<Command, CodeAction>>> {
