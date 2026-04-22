@@ -3,6 +3,7 @@ package dev.marko.lsp.logo.server
 import dev.marko.lsp.logo.analysis.SemanticAnalyzer
 import dev.marko.lsp.logo.features.CursorResolver
 import dev.marko.lsp.logo.features.DiagnosticsPublisher
+import dev.marko.lsp.logo.features.HoverProvider
 import dev.marko.lsp.logo.features.ResolvedSymbol
 import dev.marko.lsp.logo.features.SemanticTokensProvider
 import dev.marko.lsp.logo.lexer.Lexer
@@ -40,6 +41,9 @@ class LogoTextDocumentService : TextDocumentService {
 
     /** Cursor resolver instance (stateless, safe to share). */
     private val cursorResolver = CursorResolver()
+
+    /** Hover provider instance (stateless, safe to share). */
+    private val hoverProvider = HoverProvider()
 
     /** Set after the server connects to the client. */
     private var diagnosticsPublisher: DiagnosticsPublisher? = null
@@ -131,7 +135,18 @@ class LogoTextDocumentService : TextDocumentService {
     }
 
     override fun hover(params: HoverParams): CompletableFuture<Hover?> {
-        return CompletableFuture.completedFuture(null)
+        val uri = params.textDocument.uri
+        val program = programs[uri]
+            ?: return CompletableFuture.completedFuture(null)
+        val analyzer = analyzers[uri]
+            ?: return CompletableFuture.completedFuture(null)
+
+        val result = hoverProvider.provide(
+            program, analyzer,
+            params.position.line,
+            params.position.character
+        )
+        return CompletableFuture.completedFuture(result)
     }
 
     override fun declaration(params: DeclarationParams): CompletableFuture<Either<List<out Location>, List<out LocationLink>>> {

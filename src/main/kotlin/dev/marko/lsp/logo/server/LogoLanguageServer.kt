@@ -47,6 +47,9 @@ class LogoLanguageServer : LanguageServer, LanguageClientAware {
             // Declaration provider, stub for Phase 8
             setDeclarationProvider(true)
 
+            // Hover provider
+            setHoverProvider(true)
+
             // Semantic tokens provider, Phase 7
             semanticTokensProvider = SemanticTokensWithRegistrationOptions().apply {
                 legend = SemanticTokensLegend(
